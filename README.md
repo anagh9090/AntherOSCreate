@@ -31,7 +31,8 @@ sudo apt update && sudo apt install p7zip-full squashfs-tools xorriso wget -y
   cd AntherOSCreate
   ```
 2. Prepare Branding (Optional)
-
+  * Add your custom branding scripts to `scripts/`, `main.py` will execute them by **lexicographical order**
+  * Your scripts will be executed after the code has been executed in the `main.py`, I don't think you should edit the code in `main.py`, the **AntherOS Branding** can be changed by using your scripts. 
 3. Launch the Engine:
 
   ```
