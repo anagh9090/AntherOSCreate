@@ -72,7 +72,7 @@ class AntherICLI:
         if os.geteuid() != 0:
             print("\033[91m[ERROR]\033[0m Run with: sudo python3 main.py")
             sys.exit(1)
-        print("\033[94m" + "="*60 + "\n   ANTHEROS INFUSED BUILDER (ICLI)\n" + "="*60 + "\033[0m")
+        print("\033[94m" + "="*60 + "\n   ANTHEROS INFUSED BUILDER (ICLI) - BOOTABLE FIXED\n" + "="*60 + "\033[0m")
 
     def try_command(self, cmd):
         subprocess.run(cmd, check=True)
@@ -129,14 +129,37 @@ class AntherICLI:
         print("--> Squashing (XZ Compression)...")
         self.try_command(["mksquashfs", str(self.SQUASH_ROOT), str(self.target_squash), "-comp", "xz", "-noappend"])
 
-        output_iso = self.BASE_DIR / "AntherOS-24.04-Infused.iso"
-        self.try_command(["xorriso", "-as", "mkisofs", "-r", "-V", "AntherOS_24_04", 
-                         "-o", str(output_iso), str(self.EXTRACT_ISO)])
+        print("--> Detecting Boot Images...")
+        # Dynamically find boot files in case they moved
+        isolinux_bin = next(self.EXTRACT_ISO.rglob("isolinux.bin"), None)
+        efi_img = next(self.EXTRACT_ISO.rglob("efi.img"), None)
         
-        # Correct ownership back to the user who ran sudo
+        if not isolinux_bin or not efi_img:
+            print("\033[91m[WARNING]\033[0m Boot files missing in ISO structure. ISO might not be bootable.")
+
+        output_iso = self.BASE_DIR / "AntherOS-24.04-Infused.iso"
+        
+        # Professional bootable xorriso flags
+        xorriso_cmd = [
+            "xorriso", "-as", "mkisofs",
+            "-r", "-V", "AntherOS_24_04",
+            "-o", str(output_iso),
+            "-J", "-joliet-long",
+            "-b", str(isolinux_bin.relative_to(self.EXTRACT_ISO)) if isolinux_bin else "isolinux/isolinux.bin",
+            "-c", "isolinux/boot.cat",
+            "-no-emul-boot", "-boot-load-size", "4", "-boot-info-table",
+            "-eltorito-alt-boot",
+            "-e", str(efi_img.relative_to(self.EXTRACT_ISO)) if efi_img else "boot/grub/efi.img",
+            "-no-emul-boot", "-isohybrid-gpt-basdat",
+            str(self.EXTRACT_ISO)
+        ]
+
+        print(f"--> Generating Bootable Hybrid ISO...")
+        self.try_command(xorriso_cmd)
+        
+        # Return ownership
         real_user = os.environ.get('SUDO_USER')
         if real_user:
-            print(f"--> Returning ownership of {output_iso.name} to {real_user}...")
             self.try_command(["chown", f"{real_user}:{real_user}", str(output_iso)])
 
         print(f"\n\033[92m[SUCCESS] Build Complete: {output_iso.name}\033[0m")
